@@ -1,0 +1,152 @@
+<project name="Deploy QA" default="all" basedir="."> 
+	<property file="${basedir}/build.properties" />
+	<path id="cobertura.classpath">
+	  <fileset dir="${cobertura.dir}">
+	    <include name="cobertura.jar" />
+	    <include name="lib/**/*.jar" />
+	  </fileset>
+	</path>
+	<taskdef classpathref="cobertura.classpath" resource="tasks.properties" /> 
+	<taskdef name="deploy" classname="org.apache.catalina.ant.DeployTask"/>
+	<taskdef name="reload" classname="org.apache.catalina.ant.ReloadTask"/>
+	<taskdef name="undeploy" classname="org.apache.catalina.ant.UndeployTask"/>
+	<!-- *********************** INIT *********************** -->
+	<target name="init">
+		<echo message="basedir = ${basedir}" />
+		<echo message="path = file://${basedir}/${instrumented-war.dist}/${nome.war}" />
+		<echo message="diretorio = ${class.dist}" />
+		<delete dir="${class.dist}"/>
+		<delete dir="${instrumented.dir}"/>
+		<delete dir="${instrumented.dist}"/>
+		<delete dir="${instrumented-war.dist}"/>
+		<delete dir="${teste.bin}"/>
+		<delete dir="${cobertura.rel}"/>
+		<delete file="c:/temp/cobertura/${nome.war}" /> 
+		<mkdir dir="${class.dist}"/>
+	  	<mkdir dir="${instrumented.dir}"/>
+	  	<mkdir dir="${instrumented.dist}"/>
+	  	<mkdir dir="${instrumented-war.dist}"/>
+	  	<mkdir dir="${teste.bin}"/>
+		<mkdir dir="${cobertura.rel}"/>
+	</target>
+	<!-- *********************** UNPACKING *********************** -->
+	<target name="unpacking" depends="init">
+		<unzip src="${war.dist}/${nome.war}" dest="${class.dist}"/>
+	</target>
+	<!-- *********************** COBERTURA *********************** -->
+	<target name="instrument" depends="unpacking">
+	  <delete file="${basedir}/cobertura.ser" />
+	  <cobertura-instrument todir="${instrumented.dir}" datafile="${basedir}/cobertura.ser">
+	    <fileset dir="${class.dist}/WEB-INF/classes/br/com/bradesco">
+	      <include name="**/*.class" />
+	    </fileset>
+	  </cobertura-instrument>
+	</target>	
+	<!-- *********************** MERGE *********************** -->
+	<target name="merge" depends="instrument">
+	  <copy todir="${instrumented.dist}">
+	    <fileset dir="${class.dist}">
+	      <!-- <exclude name="**/*.class"/>-->
+	    </fileset>
+	  </copy>
+	  <copy todir="${instrumented.dist}\WEB-INF\classes" overwrite="true">
+	    <fileset dir="${instrumented.dir}" />
+	  </copy>
+	  <copy file="${teste.lib}/cobertura.jar" todir="${instrumented.dist}/WEB-INF/lib"/>
+    </target>
+	<!-- *********************** PACKING *********************** -->
+	<target name="packing-zip" depends="merge">
+	  <zip destfile="${instrumented-war.dist}/${nome.war}"
+       basedir="${instrumented.dist}"  />
+	</target>
+	<target name="packing" depends="merge">
+		<delete>
+			<fileset dir="02-original-classes" includes="${nome.war}.war" />
+		</delete>
+		<war webxml="02-original-classes/WEB-INF/web.xml" destfile="${instrumented-war.dist}/${nome.war}">
+		  	<webinf dir="02-original-classes/WEB-INF" />
+			<metainf dir="02-original-classes/META-INF" />
+		</war>
+	</target>	
+	<!-- *********************** COPIAR PARA SERVIDOR *********************** -->
+	<target name="copyserver" depends="packing-zip">
+	  <copy file="${instrumented-war.dist}/${nome.war}" todir="c:/temp/cobertura" />
+    </target>	
+	<!-- *********************** DEPLOY *********************** -->
+	<target name="subir" depends="packing">
+	    <undeploy url="${server.url}"
+	        username="${tomcat.user}"
+	        password="${tomcat.pwd}"
+	        path="${app.path}"/> 
+		<deploy url="${server.url}"
+	        username="${tomcat.user}"
+	        password="${tomcat.pwd}"
+	        path="${app.path}"
+	        localWar="${server.path}/${nome.war}"/> 
+ 		<!-- <reload url="${server.url}"
+	        username="${tomcat.user}"
+	        password="${tomcat.pwd}"
+	        path="${app.path}"
+	        localWar="file://${basedir}/${instrumented-war.dist}/${nome.war}"/> -->	        
+	</target>
+	<!-- *********************** COMPILACAO DOS TESTES *********************** -->	
+	<target name="compile-teste">
+        <javac srcdir="${teste.fonte}" destdir="${teste.bin}" includeantruntime="false">
+            <classpath>  
+                <fileset dir="${teste.fonte}/lib">  
+                    <include name="*.jar" />  
+                </fileset>
+            </classpath>
+        </javac>
+    </target>
+    <!-- *********************** EXECUCAO DOS TESTES *********************** -->	
+    <path id="test.classpath">
+        <pathelement location="${teste.lib}/junit-4.10.jar" />
+        <pathelement location="${teste.lib}/log4j-1.2.16.jar" />
+        <pathelement location="${teste.lib}/NovoNet_Selenium-1.0.0.jar" />
+        <pathelement location="${teste.lib}/selenium-java-2.20.0.jar" />
+        <pathelement location="${teste.lib}/selenium-server-standalone-2.20.0.jar" />
+        <pathelement location="${teste.lib}/SmokeTest7COMm-1.0.0.jar" />
+        <pathelement location="${teste.lib}/sqljdbc4.jar" /> 
+        <!--<pathelement location="${teste.fonte}/Campos.properties" /> 
+        <pathelement location="${teste.fonte}/configuracao.properties" /> -->
+        <pathelement location="${teste.bin}/*.class" />
+    </path>    
+    <target name="runtests" depends="compile-teste">
+   		 <echo message="antjar = ${teste.lib}/junit-4.10.jar" />
+        <junit printsummary="yes" haltonfailure="yes">
+          <classpath>
+              <path refid="test.classpath" />
+              <pathelement location="${teste.bin}"/>
+          </classpath>
+
+	    <sysproperty key="net.sourceforge.cobertura.datafile"
+                 file="${tomcat.dir}/cobertura.ser" />
+		  
+          <formatter type="plain" usefile="false"/>
+    
+          <batchtest fork="yes" todir="${teste.repo}">
+            <fileset dir="${teste.bin}">
+                 <include name="**/*NavegacaoTest*.class"/>
+            </fileset>
+          </batchtest>
+        </junit>
+    </target>  
+	
+	<!-- *********************** RELATORIO DE COBERTURA *********************** -->	
+	<target  name="cobertura.report">
+	  <cobertura-report format="html" 
+						destdir="${cobertura.rel}" 
+						srcdir="${source.code}" 
+						datafile="${tomcat.dir}/cobertura.ser" />
+	  <cobertura-report format="xml" 
+						destdir="${cobertura.xml}" 
+						srcdir="${source.code}" 
+						datafile="${tomcat.dir}/cobertura.ser" />
+	</target>
+	
+	<!-- *********************** ALL *********************** -->
+	<target name="all" depends="init,unpacking,instrument,merge,packing,copyserver,subir,compile-teste,runtests,cobertura.report">
+	</target>
+	
+</project>

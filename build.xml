@@ -1,0 +1,105 @@
+<?xml version="1.0" ?>
+<project name="Exemplo de " default="main" basedir="."> 
+	<property file="${basedir}/build.properties" />
+	<!-- *********************** PARA SUA COBERTURA *********************** -->
+	<path id="cobertura.classpath">
+	  <fileset dir="${cobertura.path}">
+	    <include name="cobertura.jar" />
+	    <include name="lib/*.jar" />
+	  </fileset>
+	</path>
+	<taskdef classpathref="cobertura.classpath" resource="tasks.properties" /> 
+	<!-- ****************************************************************** -->
+	<target name="main" depends="compile,runtests,instrument,runtestsCobertura,cobertura.report">
+		<echo>
+			Primeira Construção com o Ant!!! 
+			Parabéns ${autor}!!
+		</echo>
+	</target>
+	<target name="init">
+		<delete dir="${dest.dir}"/>
+		<mkdir dir="${dest.dir}"/>
+		<delete dir="${test.dir}"/>
+		<mkdir dir="${test.dir}"/>
+		<delete dir="${testCobr.dir}"/>
+		<mkdir dir="${testCobr.dir}"/>
+		<delete dir="${relatorioCobertura.dir}"/>
+		<mkdir dir="${relatorioCobertura.dir}"/>							
+    </target>		
+	<target name="compile" depends="init">
+        <javac srcdir="${src.dir}" destdir="${dest.dir}" includeantruntime="false" debug="true" debuglevel="vars,lines,source">
+            <classpath>  
+                <fileset dir="${junit.path}">  
+                    <include name="*.jar" />  
+                </fileset>
+                <fileset dir="${poi.path}">  
+                    <include name="*.jar" />  
+                </fileset>            	
+            </classpath>        	
+        </javac>
+    </target>
+    <path id="junit.classpath">
+        <pathelement location="${junit.path}/junit-4.9.jar" />
+    </path>    
+    <target name="runtests" depends="compile">
+        <junit printsummary="yes" haltonfailure="false">
+          <classpath>
+              <path refid="junit.classpath" />
+              <pathelement location="${dest.dir}"/>
+          </classpath>
+          <formatter type="xml" usefile="true"/>
+          <batchtest fork="yes" todir="${test.dir}">
+            <fileset dir="${dest.dir}">
+                 <include name="**/*CalculadoraSuiteTU*.class"/>
+            </fileset>
+          </batchtest>
+        </junit>
+        <junitreport todir="${test.dir}">
+			<fileset dir="${test.dir}">
+				<include name="TEST-*.xml"/>
+			</fileset>
+			<report format="frames" todir="${test.dir}"/>
+		</junitreport>       	
+    	
+    </target>
+	<!-- *********************** COBERTURA *********************** -->
+	<target name="instrument" depends="compile">
+	  <delete file="${basedir}/cobertura.ser" />
+	  <cobertura-instrument todir="${cobHello.dir}" datafile="${basedir}/cobertura.ser">
+	    <fileset dir="${dest.dir}">
+	      <include name="**/*.class" />
+	    </fileset>
+	  </cobertura-instrument>
+	</target>	
+	
+    <target name="runtestsCobertura" depends="instrument">
+        <junit printsummary="yes" haltonfailure="false">
+          <classpath>
+              <path refid="junit.classpath" />
+          	  <path refid="cobertura.classpath" />
+              <pathelement location="${cobHello.dir}"/>
+          </classpath>
+          <formatter type="xml" usefile="true"/>
+          <batchtest fork="yes" todir="${testCobr.dir}">
+            <fileset dir="${cobHello.dir}">
+                 <include name="**/*CalculadoraSuiteTU*.class"/>
+            </fileset>
+          </batchtest>
+        </junit>
+    	
+        <junitreport todir="${testCobr.dir}">
+			<fileset dir="${testCobr.dir}">
+			<include name="TEST-*.xml"/>
+			</fileset>
+			<report format="frames" todir="${testCobr.dir}"/>
+		</junitreport>       	
+    </target>
+	<!-- *********************** RELATORIO DE COBERTURA *********************** -->	
+	<target name="cobertura.report">
+	  <cobertura-report format="html" 
+						destdir="${relatorioCobertura.dir}" 
+						srcdir="${src.dir}" 
+						datafile="${basedir}/cobertura.ser" />
+		
+	</target>	
+</project>
